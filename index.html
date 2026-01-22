@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Avaliador de Currículo x Vaga (Upload + URL + OpenAI)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css" />
+
+  <!-- Leitura de PDF e DOCX no navegador -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.5.1/mammoth.browser.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">CV</div>
+        <div>
+          <h1>Avaliador de Currículo x Vaga</h1>
+          <p class="subtitle">Upload de currículo (PDF/DOCX/TXT), vaga por texto ou URL, avaliação heurística e relatório com IA (OpenAI).</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <section id="form" class="grid">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>1) Currículo</h2>
+              <p class="mini">Envie o arquivo ou cole o texto do currículo.</p>
+            </div>
+            <div class="meta"><span id="charCount">0</span> caracteres</div>
+          </div>
+
+          <div class="upload-box">
+            <label class="upload-label">
+              <input type="file" id="resumeFile" accept=".pdf,.docx,.txt" />
+              <span>Escolher arquivo (.pdf, .docx, .txt)</span>
+            </label>
+            <div class="upload-info" id="resumeFileInfo">Nenhum arquivo selecionado.</div>
+          </div>
+
+          <textarea id="resume" placeholder="Ou cole aqui o texto do currículo...
+
+Dica: inclua seções como Experiência Profissional, Formação/Educação, Habilidades/Skills, Projetos, etc." maxlength="60000"></textarea>
+          <div class="helper">Recomendado: 800 a 8000 caracteres (ajustável em js/script.js).</div>
+
+          <div class="divider"></div>
+
+          <h2>4) Relatório com IA (OpenAI) - opcional</h2>
+          <p class="mini">Para segurança, a chamada de IA precisa de um backend (ex.: Vercel). Configure o endpoint abaixo.</p>
+
+          <div class="url-box">
+            <input id="aiEndpoint" class="input" type="url" placeholder="Endpoint da API (ex.: https://seu-app.vercel.app/api/analyze)" />
+            <button id="btnAiTest" class="btn-fetch">Testar</button>
+          </div>
+          <div class="helper">Dica: você pode deixar vazio e usar somente a avaliação heurística.</div>
+
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>2) Descrição da vaga</h2>
+              <p class="mini">Cole o link da vaga ou cole o texto manualmente.</p>
+            </div>
+          </div>
+
+          <div class="url-box">
+            <input id="jobUrl" class="input" type="url" placeholder="Cole o link da vaga (LinkedIn, Gupy, etc.)" />
+            <button id="btnFetchJob" class="btn-fetch">Buscar vaga</button>
+          </div>
+
+          <textarea id="job" placeholder="Ou cole aqui a descrição da vaga (responsabilidades, requisitos, qualificações)..." maxlength="40000"></textarea>
+          <div class="helper">Use a vaga completa: responsabilidades, requisitos, qualificações e diferenciais.</div>
+
+          <h2 style="margin-top:18px">3) Palavras-chave extras (opcional)</h2>
+          <input id="keywords" class="input" type="text" placeholder="Ex: python, fastapi, react, liderança, inglês" />
+          <div class="helper">Separe por vírgula para forçar termos importantes na análise.</div>
+
+          <div class="row">
+            <button id="btnEvaluate" class="btn primary">Avaliar (heurística)</button>
+            <button id="btnEvaluateAi" class="btn">Gerar relatório com IA</button>
+            <button id="btnExample" class="btn">Preencher exemplo</button>
+            <button id="btnClear" class="btn ghost">Limpar tudo</button>
+          </div>
+
+          <div class="notice">
+            Avaliação heurística: tudo no navegador. IA: envia texto para o endpoint configurado (backend seu).
+            Buscar vaga por URL usa um proxy CORS; alguns sites podem bloquear.
+          </div>
+        </div>
+      </section>
+
+      <section id="results" class="card" style="display:none">
+        <div class="results-head">
+          <div>
+            <h2>Resultado</h2>
+            <p class="subtitle2" id="summaryText"></p>
+          </div>
+          <div class="results-actions">
+            <button id="btnNew" class="btn">Nova avaliação</button>
+            <button id="btnCopy" class="btn ghost">Copiar relatório (heurística)</button>
+          </div>
+        </div>
+
+        <div class="results-grid">
+          <div class="scoreBox">
+            <div class="ring" aria-label="Score geral">
+              <svg width="180" height="180" viewBox="0 0 180 180" role="img">
+                <defs>
+                  <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#6366f1" />
+                    <stop offset="100%" stop-color="#8b5cf6" />
+                  </linearGradient>
+                </defs>
+                <circle cx="90" cy="90" r="74" class="ring-bg" />
+                <circle cx="90" cy="90" r="74" class="ring-fg" id="ringFg" />
+              </svg>
+              <div class="ring-text">
+                <div class="ring-score"><span id="score">0</span><span class="muted">/100</span></div>
+                <div class="ring-label" id="scoreLabel">—</div>
+              </div>
+            </div>
+
+            <div class="stats">
+              <div class="stat">
+                <div class="stat-k">Caracteres currículo</div>
+                <div class="stat-v" id="statChars">0</div>
+              </div>
+              <div class="stat">
+                <div class="stat-k">Caracteres vaga</div>
+                <div class="stat-v" id="statJobChars">0</div>
+              </div>
+              <div class="stat">
+                <div class="stat-k">Aderência (termos)</div>
+                <div class="stat-v" id="statMatch">0%</div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3>Detalhes por critério</h3>
+            <div id="details" class="details"></div>
+
+            <div class="split">
+              <div>
+                <h3 style="margin-top:18px">Pontos fortes vs vaga</h3>
+                <div id="strengths" class="tags tags-good"></div>
+              </div>
+              <div>
+                <h3 style="margin-top:18px">Pontos a melhorar (ausentes)</h3>
+                <div id="weaknesses" class="tags tags-bad"></div>
+              </div>
+            </div>
+
+            <h3 style="margin-top:18px">Ausências críticas (requisitos)</h3>
+            <div id="criticalMissing" class="tags tags-bad"></div>
+
+            <h3 style="margin-top:18px">Diferenciais ausentes</h3>
+            <div id="niceMissing" class="tags"></div>
+
+            <h3 style="margin-top:18px">Comentários (heurística)</h3>
+            <ul id="comments" class="comments"></ul>
+
+            <div class="divider"></div>
+
+            <div class="ai-head">
+              <h3>Relatório com IA (OpenAI)</h3>
+              <button id="btnCopyAi" class="btn ghost">Copiar relatório (IA)</button>
+            </div>
+            <pre id="aiReport" class="ai-report">Nenhum relatório de IA gerado ainda.</pre>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div>Frontend estático (GitHub Pages) + backend recomendado (Vercel) para IA.</div>
+      <div class="muted">Atalho: Ctrl/Command + Enter para avaliar (heurística).</div>
+    </footer>
+  </div>
+
+  <div id="loading" class="loading" style="display:none;">
+    <div class="spinner"></div>
+    <div class="loading-text">Processando, aguarde...</div>
+  </div>
+
+  <script src="js/script.js"></script>
+</body>
+</html>
